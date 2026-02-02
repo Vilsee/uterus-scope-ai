@@ -182,6 +182,24 @@ class ClinicalReportGenerator:
                 encoded_heatmaps[name] = self._encode_image(hm)
         
         # Render template
+        # Convert findings to dict format for template
+        findings_data = []
+        for f in decision_result.findings:
+            findings_data.append({
+                'name': f.name,
+                'value': f.value,
+                'unit': f.unit,
+                'alert_level': f.alert_level.value if hasattr(f.alert_level, 'value') else str(f.alert_level),
+                'description': f.description,
+                'recommendation': f.recommendation,
+            })
+        
+        # Build recommendations list
+        recommendations = list(decision_result.reasoning)
+        for f in decision_result.findings:
+            if f.recommendation:
+                recommendations.append(f.recommendation)
+        
         html = self.template.render(
             analysis_id=analysis_id,
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -193,15 +211,15 @@ class ClinicalReportGenerator:
             candidacy_summary=decision_result.summary,
             candidacy_class=decision_result.candidacy.value.replace('_', '-'),
             contraindications=decision_result.contraindications,
-            findings=[f.__dict__ for f in decision_result.findings],
-            recommendations=decision_result.reasoning + [r for f in decision_result.findings if f.recommendation for r in [f.recommendation]],
+            findings=findings_data,
+            recommendations=recommendations if recommendations else ["No specific recommendations at this time."],
             heatmaps=encoded_heatmaps,
             version="0.1.0",
         )
         
-        # Save report
+        # Save report with explicit UTF-8 encoding
         output_path = self.output_dir / f"{analysis_id}_report.html"
-        output_path.write_text(html)
+        output_path.write_text(html, encoding='utf-8')
         
         # Convert to PDF if requested
         if format == ReportFormat.PDF:

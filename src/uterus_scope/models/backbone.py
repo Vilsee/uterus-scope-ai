@@ -129,9 +129,20 @@ class SwinBackbone(nn.Module):
             x: Input tensor of shape (B, C, H, W)
             
         Returns:
-            List of feature tensors at different scales
+            List of feature tensors at different scales (B, C, H, W)
         """
-        return self.backbone(x)
+        features = self.backbone(x)
+        
+        # timm's Swin outputs features in (B, H, W, C) format
+        # We need to convert to (B, C, H, W) for our downstream modules
+        converted = []
+        for feat in features:
+            if feat.dim() == 4 and feat.shape[-1] in self.feature_dims:
+                # Channel-last format, convert to channel-first
+                feat = feat.permute(0, 3, 1, 2).contiguous()
+            converted.append(feat)
+        
+        return converted
     
     def get_feature_dims(self) -> list[int]:
         """Get feature dimensions at each output stage."""
